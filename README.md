@@ -1,0 +1,1 @@
+Main repo of Linux WiFi driver for nRF WiFi chip
