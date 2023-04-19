@@ -9,8 +9,7 @@
 #include "nrf_wifi_usb.h"
 #endif
 
-MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("Example for nRF7002DK Wi-Fi over USB driver.");
+
 
 #ifndef CONFIG_NRF700X_RADIO_TEST
 struct wifi_nrf_drv_priv_lnx rpu_drv_priv_lnx;
@@ -218,7 +217,7 @@ void wifi_nrf_fmac_dev_rem_lnx(struct wifi_nrf_rpu_priv_lnx *rpu_priv)
 	nrf_cfg80211_uninit(rpu_priv);
 }
 
-static int __init nrf_wifi_init(void) {
+int nrf_wifi_init(void) {
 	int ret;
 #ifndef CONFIG_NRF700X_RADIO_TEST
 	struct wifi_nrf_fmac_callbk_fns callbk_fns = { 0 };
@@ -291,27 +290,14 @@ static int __init nrf_wifi_init(void) {
 		goto err;
 	}
 
-#if defined(CONFIG_NRF700X_ON_USB_ADAPTER)
-	ret = nrf_wifi_usb_init();
-	if (!ret)
-		printk(KERN_ERR "%s: usb init ok\n", __func__);
-	else {
-		printk(KERN_ERR "%s: usb init fail\n", __func__);
-		goto err;
-	}
 	return 0;
-#endif
-	
+		
 err:
 	return -1;
 }
 
-static void __exit nrf_wifi_exit(void) {
-#if defined(CONFIG_NRF700X_ON_USB_ADAPTER)
-	nrf_wifi_usb_exit();
-#endif
+void nrf_wifi_exit(void) {
 	wifi_nrf_fmac_deinit(rpu_drv_priv_lnx.fmac_priv);
 }
 
-module_init(nrf_wifi_init);
-module_exit(nrf_wifi_exit);
+
