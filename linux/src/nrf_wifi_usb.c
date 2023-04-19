@@ -10,10 +10,19 @@
 
 #define DRV_NAME "nrf_wifi_usb"
 
+int nrf_wifi_init(void);
+int nrf_wifi_exit(void);
+
+
 extern struct wifi_nrf_drv_priv_lnx rpu_drv_priv_lnx;
 static int nrf_usb_probe(struct usb_interface *interface,
 			 const struct usb_device_id *id)
 {
+
+	nrf_wifi_init();	
+	
+	
+	
 	struct usb_device *udev = interface_to_usbdev(interface);
 	struct wifi_nrf_rpu_priv_lnx* rpu_priv = NULL;
 	int i;
@@ -58,6 +67,8 @@ static void nrf_usb_disconnect(struct usb_interface *interface)
 		printk("Fail to get rpu priv data\n");
 	}
 	wifi_nrf_fmac_dev_rem_lnx(rpu_priv);
+	
+	nrf_wifi_exit();
 }
 
 static const struct usb_device_id nrf_usb_device_table[] = {
@@ -79,7 +90,7 @@ static struct usb_driver nrf_wifi_driver = {
 	.id_table	= nrf_usb_device_table,
 };
 
-int nrf_wifi_usb_init(void) {
+static int __init nrf_wifi_usb_init(void) {
 	int result;
 
 	result = usb_register(&nrf_wifi_driver);
@@ -92,7 +103,13 @@ int nrf_wifi_usb_init(void) {
 	return result;
 }
 
-void nrf_wifi_usb_exit(void) {
+static void __exit nrf_wifi_usb_exit(void) {
 	usb_deregister(&nrf_wifi_driver);
 }
+
+
+module_init(nrf_wifi_usb_init);
+module_exit(nrf_wifi_usb_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("Example for nRF7002DK Wi-Fi over USB driver.");
 

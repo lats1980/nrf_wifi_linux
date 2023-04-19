@@ -73,7 +73,7 @@ module_objects += \
 			src/fmac_event.o \
 			src/cfg80211.o
 
-$(MODULE_NAME)-y := $(module_objects) main.o
+$(MODULE_NAME)-y := $(module_objects) src/main.o
 
 all: clean
 #	make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNEL) M=$(PWD) modules
