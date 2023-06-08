@@ -17,7 +17,6 @@
 #include "fmac_peer.h"
 #include "fmac_cmd.h"
 #include "fmac_ap.h"
-#include <string.h>
 
 #ifdef CONFIG_NRF700X_DATA_TX
 static enum wifi_nrf_status
@@ -512,6 +511,9 @@ wifi_nrf_fmac_data_event_process(struct wifi_nrf_fmac_dev_ctx *fmac_dev_ctx,
 {
 	enum wifi_nrf_status status = WIFI_NRF_STATUS_SUCCESS;
 	int event = -1;
+#ifdef CONFIG_NRF700X_TX_DONE_WQ_ENABLED
+	struct nrf_wifi_tx_buff_done *config;
+#endif
 
 	if (!fmac_dev_ctx) {
 		goto out;
@@ -564,7 +566,7 @@ wifi_nrf_fmac_data_event_process(struct wifi_nrf_fmac_dev_ctx *fmac_dev_ctx,
 #ifdef CONFIG_NRF700X_DATA_TX
 	case NRF_WIFI_CMD_TX_BUFF_DONE:
 #ifdef CONFIG_NRF700X_TX_DONE_WQ_ENABLED
-		struct nrf_wifi_tx_buff_done *config = wifi_nrf_osal_mem_zalloc(
+		config = wifi_nrf_osal_mem_zalloc(
 					fmac_dev_ctx->fpriv->opriv,
 					sizeof(struct nrf_wifi_tx_buff_done));
 		if (!config) {

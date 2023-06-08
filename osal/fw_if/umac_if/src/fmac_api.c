@@ -23,6 +23,7 @@
 #include "fmac_event.h"
 #include "fmac_bb.h"
 #include "util.h"
+#include "queue.h"
 
 #ifdef CONFIG_NRF700X_RADIO_TEST
 #define RADIO_CMD_STATUS_TIMEOUT 5000
