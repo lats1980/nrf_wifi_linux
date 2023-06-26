@@ -47,6 +47,7 @@ static void lnx_shim_qspi_read_reg32_hl(struct spi_device *spi, void *dest, unsi
 	struct spi_message m;
 	spi_message_init(&m);
 
+	u8 extra_dummy_word = 3;
 	u8 miso[64];
 	u8 mosi[64];
 	struct spi_transfer tr_hdr = {
@@ -60,8 +61,8 @@ static void lnx_shim_qspi_read_reg32_hl(struct spi_device *spi, void *dest, unsi
 	mosi[2] = (addr>>8)&0xFF;
 	mosi[3] = addr&0xFF;
 	mosi[4] = 0x00; //dummy byte
-	memset(&mosi[5], 4, 0);
-	tr_hdr.len = 9;
+	memset(&mosi[5], 4 * extra_dummy_word, 0);
+	tr_hdr.len = 5 + 4 * extra_dummy_word;
 	spi_message_add_tail(&tr_hdr, &m);
 
 	struct spi_transfer tr_payload = {
@@ -1166,10 +1167,11 @@ static void *lnx_shim_bus_spi_dev_add(void *os_qspi_priv, void *osal_qspi_dev_ct
 	//Rise BUCKEN and IOVDD
 	gpiod_set_value(lnx_qspi_priv->bucken, 0);
 	gpiod_set_value(lnx_qspi_priv->iovdd, 0);
-	msleep(10);
+	msleep(100);
 	gpiod_set_value(lnx_qspi_priv->bucken, 1);
-	msleep(10);
+	msleep(100);
 	gpiod_set_value(lnx_qspi_priv->iovdd, 1);
+	msleep(100);
 	// Send 0x3F, 0x01
 
 	mosi[0] = 0x3F;
