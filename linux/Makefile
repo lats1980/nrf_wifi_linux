@@ -88,7 +88,6 @@ endif
 
 module_objects += \
 			src/shim.o \
-			src/fmac_event.o \
 			src/cfg80211.o
 
 $(MODULE_NAME)-y := $(module_objects) src/main.o

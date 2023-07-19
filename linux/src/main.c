@@ -1,6 +1,5 @@
 
 #include <linux/module.h>
-#include "fmac_event.h"
 #include <rpu_fw_patches.h>
 #include <fmac_api.h>
 #include <linux_fmac_main.h>
@@ -60,33 +59,6 @@ struct wifi_nrf_drv_priv_lnx rpu_drv_priv_lnx;
 
 /* TODO add missing code */
 #endif /* !CONFIG_NRF700X_RADIO_TEST */
-
-void fmac_event_handler_routine(struct work_struct *w)
-{
-	struct fmac_event *event;
-
-	/* Get event from queue */
-	while (!list_empty(&rpu_drv_priv_lnx.fmac_event_q)) {
-		event = list_first_entry(&rpu_drv_priv_lnx.fmac_event_q,
-					 struct fmac_event, q);
-		//printk("get event from q. len: %u\n", event->datalen);
-		if (event->data && event->datalen) {
-			if (event->type == FMAC_EVENT_CARR_STATE) {
-				enum wifi_nrf_fmac_if_carr_state carr_state;
-				carr_state = *(enum wifi_nrf_fmac_if_carr_state *)event->data;
-				wifi_nrf_if_carr_state_chg(event->vif_ctx, carr_state);
-			} else {
-				cfg80211_process_fmac_event(event);
-			}
-			list_del(&event->q);
-			kfree(event->data);
-			kfree(event);
-		} else {
-			list_del(&event->q);
-			kfree(event);
-		}
-	}
-}
 
 struct wifi_nrf_rpu_priv_lnx *wifi_nrf_fmac_dev_add_lnx(struct device *dev)
 {
@@ -177,7 +149,6 @@ struct wifi_nrf_rpu_priv_lnx *wifi_nrf_fmac_dev_add_lnx(struct device *dev)
 		rpu_priv->vif_priv[i].wiphy = rpu_priv->wiphy;
 	}
 	vif_ctx = &rpu_priv->vif_priv[0];
-	vif_ctx->fmac_event_q = &rpu_drv_priv_lnx.fmac_event_q;
 	memset(&add_vif_info, 0, sizeof(add_vif_info));
 	add_vif_info.iftype = NRF_WIFI_IFTYPE_STATION;
 	memcpy(add_vif_info.ifacename, "wlan0", strlen("wlan0"));
@@ -257,9 +228,6 @@ int nrf_wifi_init(void) {
 		return -1;
 	}
 
-	spin_lock_init(&rpu_drv_priv_lnx.evt_q_lock);
-	INIT_LIST_HEAD(&rpu_drv_priv_lnx.fmac_event_q);
-	INIT_WORK(&rpu_drv_priv_lnx.ws_event, fmac_event_handler_routine);
 #ifdef CONFIG_NRF700X_DATA_TX
 	data_config.aggregation = aggregation;
 	data_config.wmm = wmm;
@@ -270,7 +238,7 @@ int nrf_wifi_init(void) {
 	data_config.max_rxampdu_size = max_rxampdu_size;
 	data_config.rate_protection_type = rate_protection_type;
 
-	callbk_fns.if_carr_state_chg_callbk_fn = nrf_wifi_umac_event_carr_state_chg_lnx;
+	callbk_fns.if_carr_state_chg_callbk_fn = wifi_nrf_if_carr_state_chg;
 	callbk_fns.rx_frm_callbk_fn = nrf_wifi_umac_event_rx_frm_lnx;
 #endif
 	rx_buf_pools[0].num_bufs = rx1_num_bufs;
@@ -280,24 +248,24 @@ int nrf_wifi_init(void) {
 	rx_buf_pools[1].buf_sz = rx2_buf_sz;
 	rx_buf_pools[2].buf_sz = rx3_buf_sz;
 
-	callbk_fns.scan_start_callbk_fn = nrf_wifi_umac_event_trigger_scan_lnx;
-	callbk_fns.scan_done_callbk_fn = nrf_wifi_umac_event_trigger_scan_lnx;
-	callbk_fns.disp_scan_res_callbk_fn = nrf_wifi_umac_event_new_scan_display_results_lnx;
+	callbk_fns.event_get_wiphy = wifi_nrf_wpa_supp_event_get_wiphy_lnx;
+	callbk_fns.scan_start_callbk_fn = wifi_nrf_wpa_supp_event_proc_scan_start_lnx;
+	callbk_fns.scan_done_callbk_fn = wifi_nrf_wpa_supp_event_proc_scan_done_lnx;
+	//callbk_fns.disp_scan_res_callbk_fn = nrf_wifi_umac_event_new_scan_display_results_lnx;
 	//callbk_fns.twt_config_callbk_fn = wifi_nrf_event_proc_twt_setup_zep;
 	//callbk_fns.twt_teardown_callbk_fn = wifi_nrf_event_proc_twt_teardown_zep;
 	//callbk_fns.twt_sleep_callbk_fn = wifi_nrf_event_proc_twt_sleep_zep;
 	//callbk_fns.event_get_reg = wifi_nrf_event_get_reg_zep;
 #ifdef CONFIG_WPA_SUPP
-	callbk_fns.scan_res_callbk_fn = nrf_wifi_umac_event_new_scan_results_lnx;
-	callbk_fns.auth_resp_callbk_fn = nrf_wifi_umac_event_mlme_lnx;
-	callbk_fns.assoc_resp_callbk_fn = nrf_wifi_umac_event_mlme_lnx;
-	//callbk_fns.deauth_callbk_fn = wifi_nrf_wpa_supp_event_proc_deauth;
-	callbk_fns.disassoc_callbk_fn = wifi_nrf_wpa_supp_event_proc_disassoc;
+	callbk_fns.scan_res_callbk_fn = wifi_nrf_wpa_supp_event_proc_scan_res_lnx;
+	callbk_fns.auth_resp_callbk_fn = wifi_nrf_wpa_supp_event_proc_auth_resp_lnx;
+	callbk_fns.assoc_resp_callbk_fn = wifi_nrf_wpa_supp_event_proc_assoc_resp_lnx;
+	callbk_fns.deauth_callbk_fn = wifi_nrf_wpa_supp_event_proc_deauth_lnx;
+	callbk_fns.disassoc_callbk_fn = wifi_nrf_wpa_supp_event_proc_disassoc_lnx;
 	//callbk_fns.get_station_callbk_fn = wifi_nrf_wpa_supp_event_proc_get_sta;
 	//callbk_fns.get_interface_callbk_fn = wifi_nrf_wpa_supp_event_proc_get_if;
 	//callbk_fns.mgmt_tx_status = wifi_nrf_wpa_supp_event_mgmt_tx_status;
 	//callbk_fns.unprot_mlme_mgmt_rx_callbk_fn = wifi_nrf_wpa_supp_event_proc_unprot_mgmt;
-	callbk_fns.event_get_wiphy = wifi_nrf_wpa_supp_event_get_wiphy;
 	//callbk_fns.mgmt_rx_callbk_fn = wifi_nrf_wpa_supp_event_mgmt_rx_callbk_fn;
 #endif /* CONFIG_WPA_SUPP */
 	rpu_drv_priv_lnx.fmac_priv = wifi_nrf_fmac_init(&data_config,

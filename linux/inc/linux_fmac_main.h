@@ -24,9 +24,6 @@ struct wifi_nrf_rpu_priv_lnx {
 
 struct wifi_nrf_drv_priv_lnx {
 	struct wifi_nrf_fmac_priv *fmac_priv;
-	spinlock_t evt_q_lock;
-	struct list_head fmac_event_q;
-	struct work_struct ws_event;
 };
 
 struct wifi_nrf_rpu_priv_lnx *wifi_nrf_fmac_dev_add_lnx(struct device *dev);
