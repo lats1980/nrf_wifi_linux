@@ -320,6 +320,13 @@ static int nrf_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 	return status;
 }
 
+static int nrf_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,u8 key_index, bool pairwise, const u8 *mac_addr,void *cookie, void (*callback)(void *cookie, struct key_params*))
+{
+	printk("%s: key_index: %u\n", __func__, key_index);
+
+	return 0;
+}
+
 static int nrf_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 		   u8 key_index, bool pairwise, const u8 *mac_addr)
 {
@@ -365,12 +372,21 @@ static int nrf_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 	return status;
 }
 
+static int nrf_cfg80211_set_default_key(struct wiphy *wiphy,struct net_device *dev, u8 key_index, bool unicast, bool multicast)
+{
+	printk("%s: key_index: %u\n", __func__, key_index);
+
+	return 0;
+}
+
 static struct cfg80211_ops nrf_cfg80211_ops = {
 	.scan = nrf_cfg80211_scan,
 	.connect = nrf_cfg80211_connect,
 	.disconnect = nrf_cfg80211_disconnect,
 	.add_key = nrf_cfg80211_add_key,
+	.get_key = nrf_cfg80211_get_key,
 	.del_key = nrf_cfg80211_del_key,
+	.set_default_key = nrf_cfg80211_set_default_key,
 };
 
 static int nrf_ndo_open(struct net_device *dev)
