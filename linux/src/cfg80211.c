@@ -989,6 +989,8 @@ void nrf_wifi_umac_event_rx_frm_lnx(void *os_vif_ctx, void *frm)
 	skb->protocol = eth_type_trans(skb, vif_priv->ndev);
 	skb->ip_summed = CHECKSUM_UNNECESSARY;
 	netif_rx_ni(skb);
+	kfree(nwb->priv);
+	kfree(nwb);
 }
 
 #endif /* CONFIG_NRF700X_DATA_TX */
