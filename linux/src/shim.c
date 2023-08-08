@@ -24,13 +24,13 @@ static atomic_t tx_pending;
 static void *lnx_shim_mem_alloc(size_t size)
 {
 	size = (size + 4) & 0xfffffffc;
-	return kmalloc(size, GFP_KERNEL);
+	return kmalloc(size, GFP_ATOMIC);
 }
 
 static void *lnx_shim_mem_zalloc(size_t size)
 {
 	size = (size + 4) & 0xfffffffc;
-	return kcalloc(size, sizeof(char), GFP_KERNEL);
+	return kcalloc(size, sizeof(char), GFP_ATOMIC);
 }
 
 static void lnx_shim_mem_free(void *buf)
@@ -632,7 +632,7 @@ static void *lnx_shim_spinlock_alloc(void)
 {
 	struct semaphore *lock;
 
-	lock = kmalloc(sizeof(*lock), GFP_KERNEL);
+	lock = kmalloc(sizeof(*lock), GFP_ATOMIC);
 	if (!lock) {
 		printk("%s: Unable to allocate memory for spinlock\n", __func__);
 	}
@@ -708,12 +708,12 @@ static void *lnx_shim_nbuf_alloc(unsigned int size)
 {
 	struct nwb *nwb;
 
-	nwb = (struct nwb *)kcalloc(sizeof(struct nwb), sizeof(char), GFP_KERNEL);
+	nwb = (struct nwb *)kcalloc(sizeof(struct nwb), sizeof(char), GFP_ATOMIC);
 
 	if (!nwb)
 		return NULL;
 
-	nwb->priv = kcalloc(size, sizeof(char), GFP_KERNEL);
+	nwb->priv = kcalloc(size, sizeof(char), GFP_ATOMIC);
 
 	if (!nwb->priv) {
 		kfree(nwb);
@@ -825,7 +825,7 @@ static void *lnx_shim_llist_node_alloc(void)
 {
 	struct lnx_shim_llist_node *llist_node = NULL;
 
-	llist_node = kcalloc(sizeof(*llist_node), sizeof(char), GFP_KERNEL);
+	llist_node = kcalloc(sizeof(*llist_node), sizeof(char), GFP_ATOMIC);
 
 	if (!llist_node) {
 		printk("%s: Unable to allocate memory for linked list node\n", __func__);
@@ -864,7 +864,7 @@ static void *lnx_shim_llist_alloc(void)
 {
 	struct lnx_shim_llist *llist = NULL;
 
-	llist = kcalloc(sizeof(*llist), sizeof(char), GFP_KERNEL);
+	llist = kcalloc(sizeof(*llist), sizeof(char), GFP_ATOMIC);
 	if (!llist) {
 		printk("%s: Unable to allocate memory for linked list\n", __func__);
 	}
@@ -960,7 +960,7 @@ static void *lnx_shim_work_alloc(int type)
 {
 	struct work_item *item = NULL;
 
-	item = kcalloc(sizeof(*item), sizeof(char), GFP_KERNEL);
+	item = kcalloc(sizeof(*item), sizeof(char), GFP_ATOMIC);
 
 	if (!item) {
 		printk("%s: Unable to allocate memory for work\n", __func__);
@@ -1499,7 +1499,7 @@ static void *zep_shim_timer_alloc(void)
 {
 	struct timer_list *timer = NULL;
 
-	timer = kmalloc(sizeof(*timer), GFP_KERNEL);
+	timer = kmalloc(sizeof(*timer), GFP_ATOMIC);
 
 	if (!timer)
 		LOG_ERR("%s: Unable to allocate memory for work\n", __func__);

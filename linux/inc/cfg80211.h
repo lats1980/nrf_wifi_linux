@@ -2,6 +2,7 @@
 #define __CFG80211_H__
 
 #include <net/cfg80211.h>
+#include <linux/kfifo.h>
 #include <fmac_api.h>
 
 #define WIPHY_NAME "nrf_wifi"
@@ -30,10 +31,8 @@ struct nrf_vif_priv {
 	struct nrf_wifi_umac_assoc_info assoc_info;
 	struct cfg80211_bss *bss;
 #ifdef CONFIG_NRF700X_DATA_TX
-	void *data_txq;
 	struct work_struct ws_data_tx;
-	struct work_struct ws_queue_monitor;
-	unsigned long long num_tx_pkt;
+	struct kfifo tx_fifo;
 #endif
 	unsigned char vif_idx;
 	enum nrf_vif_status vif_status;
