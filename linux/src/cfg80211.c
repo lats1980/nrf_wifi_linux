@@ -62,41 +62,26 @@ static void nrf_cfg80211_data_tx_routine(struct work_struct *w) {
 	struct nrf_vif_priv *nrf_vif = container_of(w, struct nrf_vif_priv, ws_data_tx);
 	struct wifi_nrf_rpu_priv_lnx *rpu_priv = nrf_vif->rpu_priv;
 	enum wifi_nrf_status status = WIFI_NRF_STATUS_FAIL;
-	void *netbuf = NULL;
 
-	netbuf = wifi_nrf_utils_q_dequeue(rpu_priv->drv_priv->fmac_priv->opriv,
-						nrf_vif->data_txq);
+	while (kfifo_len(&nrf_vif->tx_fifo) > 0) {
+		struct nwb *nbuf;
 
-	if (netbuf == NULL) {
-		printk("%s: fail to get tx data from queue\n", __func__);
-		return;
-	}
-	status = wifi_nrf_fmac_start_xmit(rpu_priv->rpu_ctx,
-					nrf_vif->vif_idx,
-					netbuf);
-	if (status != WIFI_NRF_STATUS_SUCCESS) {
-		printk("%s: wifi_nrf_fmac_start_xmit failed\n", __func__);
-	}
-
-	if (wifi_nrf_utils_q_len(rpu_priv->drv_priv->fmac_priv->opriv,
-						nrf_vif->data_txq) > 0) {
-		schedule_work(&nrf_vif->ws_data_tx);
-	}
-}
-
-static void nrf_cfg80211_queue_monitor_routine(struct work_struct *w) {
-	struct nrf_vif_priv *nrf_vif = container_of(w, struct nrf_vif_priv, ws_queue_monitor);
-	struct wifi_nrf_rpu_priv_lnx *rpu_priv = nrf_vif->rpu_priv;
-	struct wifi_nrf_fmac_dev_ctx *fmac_dev_ctx = NULL;
-
-	fmac_dev_ctx = rpu_priv->rpu_ctx;
-
-	if (nrf_vif->num_tx_pkt - fmac_dev_ctx->host_stats.total_tx_pkts <= CONFIG_NRF700X_MAX_TX_PENDING_QLEN/2) {
-		if (netif_queue_stopped(nrf_vif->ndev)) {
-			netif_wake_queue(nrf_vif->ndev);
+		nbuf = (struct nwb *)kcalloc(sizeof(struct nwb), sizeof(char), GFP_KERNEL);
+		if (kfifo_out(&nrf_vif->tx_fifo,
+			nbuf, sizeof(struct nwb)) !=
+			sizeof(struct nwb)) {
+				printk("%s: Wrong number of elements popped\n", __func__);
+				break;
 		}
-	} else {
-		schedule_work(&nrf_vif->ws_queue_monitor);
+		status = wifi_nrf_fmac_start_xmit(rpu_priv->rpu_ctx,
+						nrf_vif->vif_idx,
+						nbuf);
+		if (status != WIFI_NRF_STATUS_SUCCESS) {
+			//printk("%s: wifi_nrf_fmac_start_xmit failed\n", __func__);
+		}
+	}
+	if (netif_queue_stopped(nrf_vif->ndev)) {
+		netif_wake_queue(nrf_vif->ndev);
 	}
 }
 #endif
@@ -406,9 +391,8 @@ static netdev_tx_t nrf_ndo_start_xmit(struct sk_buff *skb, struct net_device *de
 	netdev_tx_t ret;
 	struct ndev_priv_context *ndev_data = NULL;
 	struct wifi_nrf_rpu_priv_lnx *rpu_priv;
-	enum wifi_nrf_status status = WIFI_NRF_STATUS_FAIL;
-	void *netbuf = NULL;
 	struct wifi_nrf_fmac_dev_ctx *fmac_dev_ctx = NULL;
+	struct nwb *nwb;
 
 	//printk("%s: tx: %u\n", __func__, skb->len);
 
@@ -422,32 +406,26 @@ static netdev_tx_t nrf_ndo_start_xmit(struct sk_buff *skb, struct net_device *de
 	fmac_dev_ctx = rpu_priv->rpu_ctx;
 
 	/* Flow control */
-	if (ndev_data->nrf_vif->num_tx_pkt - fmac_dev_ctx->host_stats.total_tx_pkts >= CONFIG_NRF700X_MAX_TX_PENDING_QLEN) {
+	if (kfifo_len(&ndev_data->nrf_vif->tx_fifo) >= (CONFIG_NRF700X_MAX_TX_PENDING_QLEN * 4)/5) {
 		if (!netif_queue_stopped(dev)) {
 			netif_stop_queue(dev);
 		}
-		schedule_work(&ndev_data->nrf_vif->ws_queue_monitor);
 	}
 
-	netbuf = net_pkt_to_nbuf(skb);
-	if (netbuf == NULL) {
+	nwb = net_pkt_to_nbuf(skb);
+	if (nwb == NULL) {
 		printk("%s: fail to allocate nbuf\n", __func__);
 		ret = NET_XMIT_DROP;
 		goto out;
 	}
 
-	status = wifi_nrf_utils_q_enqueue(rpu_priv->drv_priv->fmac_priv->opriv,
-						ndev_data->nrf_vif->data_txq,
-						netbuf);
-	if (status != WIFI_NRF_STATUS_SUCCESS) {
-		printk("%s: wifi_nrf_fmac_start_xmit failed\n", __func__);
-		if (netbuf != NULL) {
-			kfree(netbuf);
-		}
-		ret = NETDEV_TX_BUSY;
-		return ret;
+	if (!kfifo_in(&ndev_data->nrf_vif->tx_fifo, nwb, sizeof(struct nwb))) {
+		kfree(nwb->priv);
+		kfree(nwb);
+		return NETDEV_TX_BUSY;
 	}
-	ndev_data->nrf_vif->num_tx_pkt++;
+	kfree(nwb);
+
 	schedule_work(&ndev_data->nrf_vif->ws_data_tx);
 
 	ret = NETDEV_TX_OK;
@@ -778,6 +756,7 @@ void wifi_nrf_wpa_supp_event_get_wiphy_lnx(void *if_priv,
 	int i, j;
 	struct ndev_priv_context *ndev_data = NULL;
 	struct ieee80211_supported_band *sband;
+	int ret;
 
 	if (!if_priv || !wiphy_info || !event_len) {
 		printk("%s: Invalid parameters\n", __func__);
@@ -873,15 +852,13 @@ void wifi_nrf_wpa_supp_event_get_wiphy_lnx(void *if_priv,
 		INIT_WORK(&vif_ctx->ws_connected, nrf_cfg80211_connected_routine);
 #ifdef CONFIG_NRF700X_DATA_TX
 		INIT_WORK(&vif_ctx->ws_data_tx, nrf_cfg80211_data_tx_routine);
-		INIT_WORK(&vif_ctx->ws_queue_monitor, nrf_cfg80211_queue_monitor_routine);
 #endif
 	}
 
 #ifdef CONFIG_NRF700X_DATA_TX
-	vif_ctx->data_txq = wifi_nrf_utils_q_alloc(vif_ctx->rpu_priv->drv_priv->fmac_priv->opriv);
-	if (vif_ctx->data_txq == NULL) {
+	ret = kfifo_alloc(&vif_ctx->tx_fifo, sizeof(struct nwb) * CONFIG_NRF700X_MAX_TX_PENDING_QLEN, GFP_KERNEL);
+	if (ret)
 		goto l_error_alloc_ndev;
-	}
 #endif
 
 	vif_ctx->ndev = alloc_netdev(sizeof(*ndev_data), NDEV_NAME, NET_NAME_ENUM, ether_setup);
